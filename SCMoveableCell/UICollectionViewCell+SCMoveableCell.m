@@ -2,6 +2,41 @@
 #import "UICollectionViewCell+SCMoveableCell.h"
 #import <objc/runtime.h>
 
+#pragma mark - SCMoveableCellConfiguration
+
+@implementation SCMoveableCellConfiguration
+
++ (instancetype)configuration
+{
+    SCMoveableCellConfiguration *configuration = [SCMoveableCellConfiguration new];
+    configuration.alphaOfMovingCell = 0.9;
+    configuration.scaleOfMovingCell = 1.1;
+    configuration.animationDuration = 0.16;
+    return configuration;
+}
+
+- (void)setAlphaOfMovingCell:(CGFloat)alphaOfMovingCell
+{
+    if (alphaOfMovingCell > 1) {
+        alphaOfMovingCell = 1;
+    } else if (alphaOfMovingCell < 0) {
+        alphaOfMovingCell = 0;
+    }
+    _alphaOfMovingCell = alphaOfMovingCell;
+}
+
+- (void)setScaleOfMovingCell:(CGFloat)scaleOfMovingCell
+{
+    if (scaleOfMovingCell < 0) {
+        scaleOfMovingCell = 0;
+    }
+    _scaleOfMovingCell = scaleOfMovingCell;
+}
+
+@end
+
+#pragma mark - SCMoveableCell
+
 @interface SCIndexPathAndFrame : NSObject
 
 @property (nonatomic, strong) NSIndexPath *indexPath;
@@ -66,17 +101,18 @@
             
             SCMoveableCellInfo *info = [SCMoveableCellInfo new];
             
+            SCMoveableCellConfiguration *configuration = self.sc_moveableCellConfiguration;
             CGRect frame = imageView.frame;
-            frame.origin.x -= frame.size.width * 0.1 / 2;
-            frame.origin.y -= frame.size.height * 0.1 / 2;
-            frame.size.width = frame.size.width * 1.1;
-            frame.size.height = frame.size.height * 1.1;
+            frame.origin.x -= frame.size.width * (configuration.scaleOfMovingCell - 1) / 2;
+            frame.origin.y -= frame.size.height * (configuration.scaleOfMovingCell - 1) / 2;
+            frame.size.width = frame.size.width * configuration.scaleOfMovingCell;
+            frame.size.height = frame.size.height * configuration.scaleOfMovingCell;
             info.beganPoint = currentPoint;
             info.beganFrame = frame;
             info.endFrame = frame;
             
-            [UIView animateWithDuration:0.05 animations:^{
-                imageView.alpha = 0.9;
+            [UIView animateWithDuration:configuration.animationDuration animations:^{
+                imageView.alpha = configuration.alphaOfMovingCell;
                 imageView.frame = frame;
             }];
             
@@ -137,7 +173,8 @@
         case UIGestureRecognizerStateCancelled:
         case UIGestureRecognizerStateFailed:
         {
-            [UIView animateWithDuration:0.25 animations:^{
+            SCMoveableCellConfiguration *configuration = self.sc_moveableCellConfiguration;
+            [UIView animateWithDuration:configuration.animationDuration animations:^{
                 self.sc_fakeImageView.frame = self.sc_info.endFrame;
                 self.sc_fakeImageView.alpha = 1;
             } completion:^(BOOL finished) {
@@ -173,6 +210,21 @@
     SCMoveableCellWeakProxy *weakProxy = [SCMoveableCellWeakProxy new];
     weakProxy.target = sc_moveableCellDelegate;
     objc_setAssociatedObject(self, @selector(sc_moveableCellDelegate), weakProxy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (SCMoveableCellConfiguration *)sc_moveableCellConfiguration
+{
+    SCMoveableCellConfiguration *configuration = objc_getAssociatedObject(self, @selector(sc_moveableCellConfiguration));
+    if (!configuration) {
+        configuration = [SCMoveableCellConfiguration configuration];
+        self.sc_moveableCellConfiguration = configuration;
+    }
+    return configuration;
+}
+
+- (void)setSc_moveableCellConfiguration:(SCMoveableCellConfiguration *)sc_moveableCellConfiguration
+{
+    objc_setAssociatedObject(self, @selector(sc_moveableCellConfiguration), sc_moveableCellConfiguration, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 - (UICollectionView *)sc_collectionView
