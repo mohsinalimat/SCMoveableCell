@@ -42,7 +42,7 @@
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath
 {
-    SCItem *item = self.dataSource[indexPath.row];
+    SCItem *item = self.dataSource[indexPath.item];
     SCCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"cell" forIndexPath:indexPath];
     cell.sc_moveableCellDelegate = self;
     cell.titleLabel.text = item.title;
@@ -52,7 +52,26 @@
 
 - (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath
 {
+    if (!self.collectionView.moving) return;
     
+    UICollectionViewCell *currentCell = [self.collectionView cellForItemAtIndexPath:indexPath];
+    if (currentCell.hidden) return;
+    currentCell.hidden = YES;
+    [self.collectionView.movingCells addObject:currentCell];
+    
+    UICollectionViewCell *movingCell = self.collectionView.movingCells.firstObject;
+    NSIndexPath *movingIndexPath = [collectionView indexPathForCell:movingCell];
+    
+    SCItem *currentItem = self.dataSource[indexPath.item];
+    if (indexPath.item < movingIndexPath.item) {
+        [self.dataSource removeObjectAtIndex:indexPath.item];
+        [self.dataSource insertObject:currentItem atIndex:movingIndexPath.item];
+        [collectionView moveItemAtIndexPath:indexPath toIndexPath:movingIndexPath];
+    } else {
+        [self.dataSource removeObjectAtIndex:indexPath.item];
+        [self.dataSource insertObject:currentItem atIndex:movingIndexPath.item + 1];
+        [collectionView moveItemAtIndexPath:indexPath toIndexPath:[NSIndexPath indexPathForItem:movingIndexPath.item+ 1 inSection:0]];
+    }
 }
 
 #pragma mark - SCMoveableCellDelegate
@@ -61,9 +80,9 @@
 {
     if (fromIndexPath.item == toIndexPath.item) return;
     
-    SCItem *item = self.dataSource[fromIndexPath.row];
-    [self.dataSource removeObjectAtIndex:fromIndexPath.row];
-    [self.dataSource insertObject:item atIndex:toIndexPath.row];
+    SCItem *item = self.dataSource[fromIndexPath.item];
+    [self.dataSource removeObjectAtIndex:fromIndexPath.item];
+    [self.dataSource insertObject:item atIndex:toIndexPath.item];
 }
 
 #pragma mark - Event Response

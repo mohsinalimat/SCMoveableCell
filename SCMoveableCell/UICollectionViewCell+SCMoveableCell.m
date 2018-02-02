@@ -1,6 +1,7 @@
 
 #import "UICollectionViewCell+SCMoveableCell.h"
 #import <objc/runtime.h>
+#import "SCCollectionView.h"
 
 #pragma mark - SCMoveableCellConfiguration
 
@@ -67,7 +68,7 @@
 
 @interface UICollectionViewCell ()
 
-@property (nonatomic, weak) UICollectionView *sc_collectionView;
+@property (nonatomic, weak) SCCollectionView *sc_collectionView;
 @property (nonatomic, weak) UIImageView *sc_fakeImageView;
 
 @property (nonatomic, strong) UILongPressGestureRecognizer *sc_longPressGestureRecognizer;
@@ -87,6 +88,14 @@
     switch (longPressGestureRecognizer.state) {
         case UIGestureRecognizerStateBegan:
         {
+            if (self.sc_collectionView.moving) {
+                longPressGestureRecognizer.enabled = NO;
+                longPressGestureRecognizer.enabled = YES;
+                return;
+            }
+            self.sc_collectionView.moving = YES;
+            [self.sc_collectionView.movingCells addObject:self];
+            
             UIGraphicsBeginImageContext(self.bounds.size);
             CGContextRef contextRef = UIGraphicsGetCurrentContext();
             [self.layer renderInContext:contextRef];
@@ -164,8 +173,9 @@
             if (!findCell || !findIndexPath || findCell.hidden) return;
             
             NSIndexPath *currentIndexPath = [self.sc_collectionView indexPathForCell:self];
-            [self.sc_moveableCellDelegate collectionViewCell:self bringDataSourceFromIndexPath:currentIndexPath toIndexPath:findIndexPath];
-            [self.sc_collectionView moveItemAtIndexPath:currentIndexPath toIndexPath:findIndexPath];
+            NSIndexPath *newIndexPath = [NSIndexPath indexPathForItem:currentIndexPath.item + self.sc_collectionView.movingCells.count - 1 inSection:0];
+            [self.sc_moveableCellDelegate collectionViewCell:self bringDataSourceFromIndexPath:findIndexPath toIndexPath:newIndexPath];
+            [self.sc_collectionView moveItemAtIndexPath:findIndexPath toIndexPath:newIndexPath];
         }
             break;
             
@@ -173,13 +183,18 @@
         case UIGestureRecognizerStateCancelled:
         case UIGestureRecognizerStateFailed:
         {
+            self.sc_collectionView.moving = NO;
+            
             SCMoveableCellConfiguration *configuration = self.sc_moveableCellConfiguration;
             [UIView animateWithDuration:configuration.animationDuration animations:^{
                 self.sc_fakeImageView.frame = self.sc_info.endFrame;
                 self.sc_fakeImageView.alpha = 1;
             } completion:^(BOOL finished) {
-                self.hidden = NO;
                 [self.sc_fakeImageView removeFromSuperview];
+                for (UICollectionViewCell *cell in self.sc_collectionView.movingCells) {
+                    cell.hidden = NO;
+                }
+                [self.sc_collectionView.movingCells removeAllObjects];
             }];
         }
             break;
@@ -227,10 +242,10 @@
     objc_setAssociatedObject(self, @selector(sc_moveableCellConfiguration), sc_moveableCellConfiguration, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-- (UICollectionView *)sc_collectionView
+- (SCCollectionView *)sc_collectionView
 {
     SCMoveableCellWeakProxy *weakProxy = objc_getAssociatedObject(self, @selector(sc_collectionView));
-    UICollectionView *collectionView = weakProxy.target;
+    SCCollectionView *collectionView = weakProxy.target;
     if (!collectionView) {
         UIView *superView = self.superview;
         while (superView) {
@@ -238,7 +253,7 @@
                 break;
             }
         }
-        collectionView = (UICollectionView *)superView;
+        collectionView = (SCCollectionView *)superView;
         SCMoveableCellWeakProxy *weakProxy = [SCMoveableCellWeakProxy new];
         weakProxy.target = collectionView;
         objc_setAssociatedObject(self, @selector(sc_collectionView), weakProxy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
